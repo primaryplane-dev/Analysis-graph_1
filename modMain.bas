@@ -251,8 +251,9 @@ Public Sub subAddCalculatedColumns()
     ' 4. 理由項目の定義
     Dim fieldsK As Variant: fieldsK = Array("RTKNIN", "RTKGYN", "RTKGYR", "RTKZAN", "RTKKYU", "RTKYAS", "RTKYAN", "RTKKIN", "RTKSYO", "RTKHYO", "RTKROU", "RTKKIT", "RTKKAI", "RTKKEK", "RTKSYU", "RTKIKU", "RTKKAG", "RTKKEN", "RTKHAI", "RTKRYU", "RTKSON")
     Dim namesK As Variant: namesK = Array("01.人間関係の悩み", "02.業務内容にやりがいを感じない", "03.業務量の多さ", "04.残業量の多さ", "05.給与", "06.年間休日が少ない", "07.休日が取れない", "08.勤務地", "09.昇格に不満", "10.評価に不満", "11.環境", "12.勤務時間が合わない", "13.会社の将来性に不安", "14.結婚", "15.出産", "16.育児", "17.介護", "18.健康面に不安がある", "19.配偶者転勤", "20.キャリアアップ", "21.その他")
-    Dim fieldsN As Variant: fieldsN = Array("RTNNIN", "RTNGYN", "RTNSEI", "RTNGYR", "RTNZAN", "RTNKYU", "RTNYAS", "RTNKIN", "RTNROU", "RTNJUU", "RTNSYO", "RTNHYO", "RTNKAI", "RTNSON")
-    Dim namesN As Variant: namesN = Array("01.人間関係", "02.業務内容", "03.やりがい・成長", "04.業務量", "05.残業量", "06.給与", "07.年間休日の日数や希望", "08.勤務地", "09.柔軟な働き方", "10.昇格", "11.評価", "12.将来性", "13.会社の将来性", "14.その他")
+    ' RTNROU（環境）は元データに存在しないため除外
+    Dim fieldsN As Variant: fieldsN = Array("RTNNIN", "RTNGYN", "RTNSEI", "RTNGYR", "RTNZAN", "RTNKYU", "RTNYAS", "RTNKIN", "RTNJUU", "RTNSYO", "RTNHYO", "RTNKAI", "RTNSON")
+    Dim namesN As Variant: namesN = Array("01.人間関係", "02.業務内容", "03.やりがい・成長", "04.業務量", "05.残業量", "06.給与", "07.年間休日の日数や希望", "08.勤務地", "09.柔軟な働き方", "10.昇格", "11.評価", "12.会社の将来性", "13.その他")
 
     ' 5. メインループ
     Dim lastRow As Long
@@ -318,9 +319,18 @@ Public Sub subAddCalculatedColumns()
             outCommon(9) = Month(dOut) & "月"
         End If
 
-        If dicKaisyaName.Exists(kaiCode) Then outCommon(4) = dicKaisyaName(kaiCode) Else If kaiCode <> 0 Then outCommon(4) = kaiCode
-        If dicKojoName.Exists(kaiCode & "_" & kojoCode) Then outCommon(5) = dicKojoName(kaiCode & "_" & kojoCode) Else If kojoCode <> 0 Then outCommon(5) = kojoCode
-        
+        ' 会社名・工場名のセット（辞書にない場合は空文字にする）
+        If dicKaisyaName.Exists(kaiCode) Then
+            outCommon(4) = dicKaisyaName(kaiCode)
+        Else
+            outCommon(4) = ""
+        End If
+        If dicKojoName.Exists(kaiCode & "_" & kojoCode) Then
+            outCommon(5) = dicKojoName(kaiCode & "_" & kojoCode)
+        Else
+            outCommon(5) = ""
+        End If        
+
         ' ★変更2：ハイブリッドマッチング（第1候補:職位_等級、第2候補:職位のみ）
         If dicPosName.Exists(codeP & "_" & codeT) Then
             outCommon(6) = dicPosName(codeP & "_" & codeT)
@@ -364,7 +374,7 @@ Public Sub subAddCalculatedColumns()
             writeRow = writeRow + 1
         End If
 
-        ' --- (B) 期待の展開 ---
+' --- (B) 期待の展開 ---
         Dim hasKitai As Boolean: hasKitai = False
         For j = 0 To UBound(fieldsN)
             Dim colN As Long: colN = 0
@@ -373,9 +383,10 @@ Public Sub subAddCalculatedColumns()
                 If Trim(CStr(ST.Cells(i, colN).Value)) = "1" Then
                     hasKitai = True
                     Dim flagN As Integer: flagN = 0
-                    If Not dictEmp.Exists(eventKey & "_期待") Then
+                    ' 1人で複数の期待理由を出力できるようにキーを分ける
+                    If Not dictEmp.Exists(eventKey & "_期待_" & j) Then
                         flagN = 1
-                        dictEmp.Add eventKey & "_期待", True
+                        dictEmp.Add eventKey & "_期待_" & j, True
                     End If
                     Call subWriteRow(SS, writeRow, outCommon, "期待", CStr(namesN(j)), valEmpRaw, i)
                     SS.Cells(writeRow, 14).Value = flagN
@@ -386,15 +397,14 @@ Public Sub subAddCalculatedColumns()
         
         If Not hasKitai Then
             Dim flagN2 As Integer: flagN2 = 0
-            If Not dictEmp.Exists(eventKey & "_期待") Then
+            If Not dictEmp.Exists(eventKey & "_期待_未回答") Then
                 flagN2 = 1
-                dictEmp.Add eventKey & "_期待", True
+                dictEmp.Add eventKey & "_期待_未回答", True
             End If
             Call subWriteRow(SS, writeRow, outCommon, "期待", "未回答", valEmpRaw, i)
             SS.Cells(writeRow, 14).Value = flagN2
             writeRow = writeRow + 1
         End If
-
 NextPerson:
     Next i
 
