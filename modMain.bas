@@ -7,7 +7,7 @@ Public Sub subMain()
     Call subGetIniFileAll
     
     ' 2. データ抽出（オフラインのときはコメントにする）
-    Call subExtractDataToSheet
+'    Call subExtractDataToSheet
     
     ' 3. ラベル付与と理由集約
     Call subAddCalculatedColumns
@@ -20,7 +20,7 @@ Public Sub subMain()
     
 End Sub
 
-' INIファイル（マスタ）の読み込み処理
+' INIファイル（会社・役職・所属）の読み込み処理
 Public Sub subGetIniFileAll()
     ' 辞書の初期化
     Set dicKaisyaName = CreateObject("Scripting.Dictionary")
@@ -149,21 +149,22 @@ Public Sub subExtractDataToSheet()
     cn.Open P_ConnectString ' modPublicで定義された接続文字列を使用
 
     ' 3. SQL文の構築
-    ' 退職日（RTIVD1）を基準に抽出、役職マスタ（MPDP01）を外部結合
+    ' 退職日（RTTDAT）を基準に抽出（等級・役職マスタ（MPDP01）は参照しない／旧プログラムと同等）
     strSQL = ""
-    strSQL = strSQL & " SELECT T1.*, T2.PDSKUC, T2.PDTKYU "
-    strSQL = strSQL & " FROM LIBIMF.IRTP01 T1 "
-    strSQL = strSQL & " LEFT JOIN LIBMMF.MPDP01 T2 "
-    strSQL = strSQL & "   ON T1.RTSYNO = T2.PDSYCD "
-    strSQL = strSQL & " WHERE 1=1 "
+    strSQL = strSQL & " SELECT * "
+    strSQL = strSQL & " FROM LIBIMF.IRTP01 "
+    strSQL = strSQL & " WHERE RTDLT <> 'X' "
+    ' RTKJNO=0 のレコードは本来存在しない（正常なデータではない）ため除外。
+    ' 前任者は「メモリが飛んだのに書かれたレコード」と表現していた異常値。
+    strSQL = strSQL & " AND RTKJNO <> 0 "
 
-    ' 期間指定がある場合のみWHERE句を追加（※列名の前に T1. をつけます）
+    ' 期間指定がある場合のみWHERE句を追加
     If P_DateFrom <> "" And P_DateTo <> "" Then
-        strSQL = strSQL & " AND T1.RTTDAT BETWEEN " & P_DateFrom & " AND " & P_DateTo
+        strSQL = strSQL & " AND RTTDAT BETWEEN " & P_DateFrom & " AND " & P_DateTo
     End If
 
-    ' 並び替え（退職日の新しい順など）（※列名の前に T1. をつけます）
-    strSQL = strSQL & " ORDER BY T1.RTIVD1 DESC "
+    ' 並び替え（退職日の新しい順）
+    strSQL = strSQL & " ORDER BY RTTDAT DESC "
     
     ' 4. データ抽出実行
     Set rs = CreateObject("ADODB.Recordset")
@@ -216,7 +217,6 @@ Public Sub subAddCalculatedColumns()
 ' ★修正：会社だけでなく、役職辞書が空の時も確実に読み込む
     If dicKaisyaName Is Nothing Then Call subGetIniFileAll
     If dicKaisyaName.Count = 0 Then Call subGetIniFileAll
-    ' ↓この2行を追加してください！
     If dicPosName Is Nothing Then Call subGetIniFileAll
     If dicPosName.Count = 0 Then Call subGetIniFileAll
     
@@ -231,8 +231,6 @@ Public Sub subAddCalculatedColumns()
     Dim cSex As Long, cJoin As Long, cRetire As Long
     Dim cKai As Long, cKojo As Long, cPos As Long, cDept As Long, cEmp As Long
     Dim cDlt As Long
-    Dim cTkyu As Long ' ★等級用の列変数を追加
-    
     On Error Resume Next
     cSex = ST.Rows(1).Find(What:="RTSEXC", LookAt:=xlWhole).Column
     cJoin = ST.Rows(1).Find(What:="RTNDAT", LookAt:=xlWhole).Column
@@ -243,9 +241,6 @@ Public Sub subAddCalculatedColumns()
     cDept = ST.Rows(1).Find(What:="RTSZBM", LookAt:=xlWhole).Column
     cEmp = ST.Rows(1).Find(What:="RTSYNO", LookAt:=xlWhole).Column
     cDlt = ST.Rows(1).Find(What:="RTDLT", LookAt:=xlWhole).Column
-    
-    cPos = ST.Rows(1).Find(What:="PDSKUC", LookAt:=xlWhole).Column ' 職位（マスタ側の列名に！）
-    cTkyu = ST.Rows(1).Find(What:="PDTKYU", LookAt:=xlWhole).Column ' 等級（マスタ側の列名に！）
     On Error GoTo 0
 
     ' 4. 理由項目の定義
@@ -290,9 +285,8 @@ Public Sub subAddCalculatedColumns()
         Dim kojoCode As Long: If cKojo > 0 Then kojoCode = Val(ST.Cells(i, cKojo).Value)
         Dim valDept As String: If cDept > 0 Then valDept = ST.Cells(i, cDept).Value
         
-        ' ★変更1：職位(codeP)を文字列(String)にし、等級(codeT)も取得する
+        ' 職位(codeP)を文字列(String)にする（等級・役職マスタ（MPDP01）は参照しない）
         Dim codeP As String: If cPos > 0 Then codeP = Trim(CStr(ST.Cells(i, cPos).Value))
-        Dim codeT As String: If cTkyu > 0 Then codeT = Trim(CStr(ST.Cells(i, cTkyu).Value))
 
         outCommon(1) = IIf(valSex = "1", "1.男性", "2.女性")
 
@@ -331,10 +325,8 @@ Public Sub subAddCalculatedColumns()
             outCommon(5) = ""
         End If        
 
-        ' ★変更2：ハイブリッドマッチング（第1候補:職位_等級、第2候補:職位のみ）
-        If dicPosName.Exists(codeP & "_" & codeT) Then
-            outCommon(6) = dicPosName(codeP & "_" & codeT)
-        ElseIf dicPosName.Exists(codeP) Then
+        ' 職位コードから役職名を取得（等級は参照しない）
+        If dicPosName.Exists(codeP) Then
             outCommon(6) = dicPosName(codeP)
         Else
             outCommon(6) = codeP ' どちらにも無ければ職位コードをそのまま出す

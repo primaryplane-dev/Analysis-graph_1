@@ -95,7 +95,7 @@ Private Sub subEditList()
     strSQL = strSQL & "     ,RTSZBM"
     strSQL = strSQL & " FROM LIBIMF.IRTP01"
     strSQL = strSQL & " WHERE RTDLT <> 'X'"
-    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'メモリが飛んだのに書かれたレコード
+    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'RTKJNO=0 のレコードは本来存在しない（正常なデータではない）ため除外
     If P_bDate Then strSQL = strSQL & "   AND RTIVD1 BETWEEN " & Format(P_DateF, "yyyymmdd") & " AND " & Format(P_DateT, "yyyymmdd")
     If Not P_SelKAI = 999 Then strSQL = strSQL & "   AND RTKAIC = '" & P_SelKAI & "'"
     If Not P_SelKJN = 999 Then strSQL = strSQL & "   AND RTKJNO = '" & P_SelKJN & "'"
@@ -345,7 +345,7 @@ Private Sub subEditList_2()
     strSQL = strSQL & "     ,RTSZBM"
     strSQL = strSQL & " FROM LIBIMF.IRTP01"
     strSQL = strSQL & " WHERE RTDLT <> 'X'"
-    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'メモリが飛んだのに書かれたレコード
+    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'RTKJNO=0 のレコードは本来存在しない（正常なデータではない）ため除外
     strSQL = strSQL & "   AND RTIVD1 BETWEEN " & "20220101" & " AND " & "20251231"
     If Not P_SelKAI = 999 Then strSQL = strSQL & "   AND RTKAIC = '" & P_SelKAI & "'"
     If Not P_SelKJN = 999 Then strSQL = strSQL & "   AND RTKJNO = '" & P_SelKJN & "'"
@@ -797,7 +797,7 @@ Private Sub subSetKaisya()
     strSQL = strSQL & "      ,RTKAIM"
     strSQL = strSQL & " FROM LIBIMF.IRTP01"
     strSQL = strSQL & " WHERE RTDLT <> 'X'"
-    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'メモリが飛んだのに書かれたレコード
+    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'RTKJNO=0 のレコードは本来存在しない（正常なデータではない）ため除外
     strSQL = strSQL & " ORDER BY RTKAIC"
 
     RS.Open strSQL, CN, adOpenForwardOnly, adLockReadOnly
@@ -833,7 +833,7 @@ Private Sub subSetKojo()
     strSQL = strSQL & "      ,RTKJNM"
     strSQL = strSQL & " FROM LIBIMF.IRTP01"
     strSQL = strSQL & " WHERE RTDLT <> 'X'"
-    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'メモリが飛んだのに書かれたレコード
+    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'RTKJNO=0 のレコードは本来存在しない（正常なデータではない）ため除外
     strSQL = strSQL & " ORDER BY RTKJNO"
 
     RS.Open strSQL, CN, adOpenForwardOnly, adLockReadOnly
@@ -870,7 +870,7 @@ Private Sub subSetShozoku()
     strSQL = strSQL & "      ,RTSZBM"
     strSQL = strSQL & " FROM LIBIMF.IRTP01"
     strSQL = strSQL & " WHERE RTDLT <> 'X'"
-    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'メモリが飛んだのに書かれたレコード
+    strSQL = strSQL & "   AND NOT RTKJNO = 0"       'RTKJNO=0 のレコードは本来存在しない（正常なデータではない）ため除外
     strSQL = strSQL & " ORDER BY RTKAIC, RTKJNO"
 
     RS.Open strSQL, CN, adOpenForwardOnly, adLockReadOnly
