@@ -285,8 +285,19 @@ Public Sub subAddCalculatedColumns()
         Dim kojoCode As Long: If cKojo > 0 Then kojoCode = Val(ST.Cells(i, cKojo).Value)
         Dim valDept As String: If cDept > 0 Then valDept = ST.Cells(i, cDept).Value
         
-        ' 職位(codeP)を文字列(String)にする（等級・役職マスタ（MPDP01）は参照しない）
+        ' 職位・等級から役職名を判定（役職.iniの範囲指定・完全一致に対応）
         Dim codeP As String: If cPos > 0 Then codeP = Trim(CStr(ST.Cells(i, cPos).Value))
+        Dim grade As String: grade = "" ' 等級列名に合わせて取得
+        Dim cGrade As Long: cGrade = ST.Rows(1).Find(What:="RTTKYU", LookAt:=xlWhole).Column
+        If cGrade > 0 Then grade = Trim(CStr(ST.Cells(i, cGrade).Value))
+
+        ' デバッグ用：職位・等級・辞書件数を出力
+        Debug.Print "codeP=" & codeP & ", grade=" & grade & ", dicPosName.Count=" & dicPosName.Count
+        If dicPosName Is Nothing Then
+            Debug.Print "dicPosName is Nothing"
+        End If
+
+        outCommon(6) = GetYakushokuName(codeP, grade, dicPosName)
 
         outCommon(1) = IIf(valSex = "1", "1.男性", "2.女性")
 
@@ -325,12 +336,6 @@ Public Sub subAddCalculatedColumns()
             outCommon(5) = ""
         End If        
 
-        ' 職位コードから役職名を取得（等級は参照しない）
-        If dicPosName.Exists(codeP) Then
-            outCommon(6) = dicPosName(codeP)
-        Else
-            outCommon(6) = codeP ' どちらにも無ければ職位コードをそのまま出す
-        End If
         
         outCommon(7) = valDept
         
@@ -484,3 +489,56 @@ Public Sub subCloseSafely()
         ThisWorkbook.Close SaveChanges:=False
     End If
 End Sub
+
+' 職位・等級から役職名を判定（範囲指定・完全一致対応）
+Function GetYakushokuName(ByVal codeP As String, ByVal grade As String, ByVal dicPosName As Object) As String
+    Dim keyFull As String
+    Dim k As Variant
+    Dim iniArr As Variant
+    Dim pos As String, cond As String, name As String
+    Dim g As Long, gVal As Long
+
+    ' 1. 完全一致（職位,等級）優先
+    keyFull = codeP & "_" & grade
+    If dicPosName.Exists(keyFull) Then
+        GetYakushokuName = dicPosName(keyFull)
+        Exit Function
+    End If
+
+    ' 2. 範囲指定（例: 40,<=21,07.一般）をiniから探す
+    For Each k In dicPosName.Keys
+        iniArr = Split(k, "_")
+        If UBound(iniArr) = 1 Then
+            pos = iniArr(0)
+            cond = iniArr(1)
+            If pos = codeP Then
+                ' 範囲指定パターン
+                If Left(cond, 2) = "<=" Then
+                    gVal = Val(Mid(cond, 3))
+                    If IsNumeric(grade) And Val(grade) <= gVal Then
+                        GetYakushokuName = dicPosName(k)
+                        Exit Function
+                    End If
+                ElseIf Left(cond, 2) = ">=" Then
+                    gVal = Val(Mid(cond, 3))
+                    If IsNumeric(grade) And Val(grade) >= gVal Then
+                        GetYakushokuName = dicPosName(k)
+                        Exit Function
+                    End If
+                ElseIf cond = "*" Then
+                    GetYakushokuName = dicPosName(k)
+                    Exit Function
+                End If
+            End If
+        End If
+    Next k
+
+    ' 3. 職位のみ一致
+    If dicPosName.Exists(codeP) Then
+        GetYakushokuName = dicPosName(codeP)
+        Exit Function
+    End If
+
+    ' 4. どれにも該当しない場合はコードを返す
+    GetYakushokuName = codeP
+End Function
