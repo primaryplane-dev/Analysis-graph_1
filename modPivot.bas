@@ -1,5 +1,7 @@
 Option Explicit
 
+Private Const MAX_REASON_ITEMS As Long = 8
+
 Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     Dim ST As Worksheet, SS As Worksheet
     Dim pt As PivotTable, pc As Chart, pcCache As PivotCache
@@ -115,6 +117,7 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     
     If pNum >= 3 And pNum <= 8 Then
         pt.PivotFields("集計理由項目").Orientation = xlRowField
+        ApplyTopNToReason pt, MAX_REASON_ITEMS
     ElseIf pNum = 11 Or pNum = 12 Then
         pt.PivotFields("集計理由項目").Orientation = xlColumnField
     End If
@@ -127,11 +130,12 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     pc.SetSourceData Source:=pt.TableRange1
     
     Select Case pNum
-        Case 1, 2, 3, 4, 5, 6, 7, 8: pc.ChartType = xlPie
+        Case 1, 2: pc.ChartType = xlPie
+        Case 3, 4, 5, 6, 7, 8: pc.ChartType = xlBarClustered
         Case 11, 12: pc.ChartType = xlColumnStacked
         Case Else: pc.ChartType = xlColumnClustered
     End Select
-    
+
     ' --- スライサー作成 ---
     Dim slNames As Variant, slItem As Variant
     Dim i As Integer: i = 0
@@ -164,10 +168,19 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     
     On Error Resume Next
     pc.ApplyDataLabels Type:=xlDataLabelsShowValue
-    
-    ' 凡例を下部に配置して折り返させる
+
+    ' 多項目時は凡例を隠して描画領域を確保
+    Dim reasonCount As Long
+    reasonCount = CountVisiblePivotItems(pt, "集計理由項目")
+
     pc.HasLegend = True
-    pc.Legend.Position = xlLegendPositionBottom
+    If reasonCount > MAX_REASON_ITEMS Then
+        pc.HasLegend = False
+    ElseIf pNum >= 3 And pNum <= 8 Then
+        pc.Legend.Position = xlLegendPositionRight
+    Else
+        pc.Legend.Position = xlLegendPositionBottom
+    End If
     
     
     Dim srs As Series
@@ -185,4 +198,46 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     
     Application.ScreenUpdating = True
 End Sub
+
+Private Sub ApplyTopNToReason(ByVal pt As PivotTable, ByVal topN As Long)
+    Dim pf As PivotField
+    On Error Resume Next
+    Set pf = pt.PivotFields("集計理由項目")
+    On Error GoTo 0
+
+    If pf Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    pf.ClearAllFilters
+    pf.AutoSort xlDescending, pt.DataFields(1).Name
+    pf.PivotFilters.Add2 Type:=xlTopCount, DataField:=pt.DataFields(1), Value1:=topN
+    If Err.Number <> 0 Then
+        Err.Clear
+        pf.PivotFilters.Add Type:=xlTopCount, DataField:=pt.DataFields(1), Value1:=topN
+    End If
+    On Error GoTo 0
+End Sub
+
+Private Function CountVisiblePivotItems(ByVal pt As PivotTable, ByVal fieldName As String) As Long
+    Dim pf As PivotField
+    Dim pi As PivotItem
+
+    On Error Resume Next
+    Set pf = pt.PivotFields(fieldName)
+    On Error GoTo 0
+
+    If pf Is Nothing Then
+        CountVisiblePivotItems = 0
+        Exit Function
+    End If
+
+    CountVisiblePivotItems = 0
+    On Error Resume Next
+    For Each pi In pf.PivotItems
+        If pi.Visible Then
+            CountVisiblePivotItems = CountVisiblePivotItems + 1
+        End If
+    Next pi
+    On Error GoTo 0
+End Function
 
