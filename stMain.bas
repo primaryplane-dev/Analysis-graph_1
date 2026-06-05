@@ -20,13 +20,14 @@ Private Sub Worksheet_PivotTableUpdate(ByVal Target As PivotTable)
     ' 1. リフレッシュ処理
     On Error Resume Next
 '    Call subRefreshGraphCleanly
+    Call subTryApplyRoleReasonDetailFromSelection
     On Error GoTo 0
 
     ' 2. グラフタイトル更新（今の分析名を表示）
     On Error Resume Next
     Set pc = ws.ChartObjects("退職分析グラフ").Chart
     If Not pc Is Nothing Then
-        pc.ChartTitle.Text = fnTrimCode(P_Pattern)
+        pc.ChartTitle.Text = fnBuildChartTitle()
     End If
     On Error GoTo 0
 

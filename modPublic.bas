@@ -2,6 +2,7 @@ Option Explicit
 
 Public Const P_ConnectString As String = "Provider=IBMDA400;Data Source=HONSHA;User ID=SYSTEM;Password=FJPN2480"
 'Public Const P_ConnectString As String = "Provider=IBMDA400;Data Source=FUJIPAN;User ID=SYSTEM;Password=FJPN2480"
+Public P_SelectedRoleDetail As String
 
 '
 Public Function fnTrimCode(ByVal str As String) As String
@@ -13,5 +14,16 @@ Public Function fnTrimCode(ByVal str As String) As String
         fnTrimCode = Mid(Target, 4)
     Else
         fnTrimCode = Target
+    End If
+End Function
+
+Public Function fnBuildChartTitle() As String
+    Dim baseTitle As String
+    baseTitle = fnTrimCode(P_Pattern)
+
+    If Val(Left(P_Pattern, 2)) = 5 And Trim$(P_SelectedRoleDetail) <> "" Then
+        fnBuildChartTitle = baseTitle & "（" & P_SelectedRoleDetail & "）"
+    Else
+        fnBuildChartTitle = baseTitle
     End If
 End Function

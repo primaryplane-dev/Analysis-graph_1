@@ -1,6 +1,8 @@
 Option Explicit
 
 Private Const MAX_REASON_ITEMS As Long = 8
+Private Const DETAIL_PATTERN_ROLE_REASON As Long = 5
+Private m_IsApplyingRoleDetail As Boolean
 
 Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     Dim ST As Worksheet, SS As Worksheet
@@ -76,6 +78,7 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
 
     ' --- パターン別 値エリアの切り替え ---
     pNum = Val(Left(selectedPattern, 2))
+    P_SelectedRoleDetail = ""
     
     Select Case pNum
         Case 1, 2, 5, 6, 7, 8, 9, 10
@@ -115,7 +118,7 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     End Select
     If axisField <> "" Then pt.PivotFields(axisField).Orientation = xlRowField
     
-    If pNum >= 3 And pNum <= 8 Then
+    If pNum >= 3 And pNum <= 8 And pNum <> DETAIL_PATTERN_ROLE_REASON Then
         pt.PivotFields("集計理由項目").Orientation = xlRowField
         ApplyTopNToReason pt, MAX_REASON_ITEMS
     ElseIf pNum = 11 Or pNum = 12 Then
@@ -130,7 +133,7 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     pc.SetSourceData Source:=pt.TableRange1
     
     Select Case pNum
-        Case 1, 2: pc.ChartType = xlPie
+        Case 1, 2, DETAIL_PATTERN_ROLE_REASON: pc.ChartType = xlPie
         Case 3, 4, 5, 6, 7, 8: pc.ChartType = xlBarClustered
         Case 11, 12: pc.ChartType = xlColumnStacked
         Case Else: pc.ChartType = xlColumnClustered
@@ -164,7 +167,7 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     
     ' 図形が作られたあとにタイトルと値をセット
     pc.HasTitle = True
-    pc.ChartTitle.Text = fnTrimCode(selectedPattern)
+    pc.ChartTitle.Text = fnBuildChartTitle()
     
     On Error Resume Next
     pc.ApplyDataLabels Type:=xlDataLabelsShowValue
@@ -189,7 +192,7 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
         srs.DataLabels.ShowValue = True
     Next srs
     On Error GoTo 0
-    
+
     ' カーソルを左上に戻す
     ST.Activate
     ST.Range("A1").Select
@@ -198,6 +201,147 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     
     Application.ScreenUpdating = True
 End Sub
+
+Public Sub subTryApplyRoleReasonDetailFromSelection()
+    Dim ws As Worksheet
+    Dim pt As PivotTable
+    Dim pc As Chart
+    Dim selectedRole As String
+
+    If Val(Left(P_Pattern, 2)) <> DETAIL_PATTERN_ROLE_REASON Then Exit Sub
+    If m_IsApplyingRoleDetail Then Exit Sub
+
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("分析グラフ")
+    If ws Is Nothing Then Exit Sub
+    If ws.PivotTables.Count = 0 Then Exit Sub
+    Set pt = ws.PivotTables(1)
+    Set pc = ws.ChartObjects("退職分析グラフ").Chart
+    On Error GoTo 0
+
+    If pt Is Nothing Or pc Is Nothing Then Exit Sub
+    If IsRoleReasonDetailLayout(pt) Then Exit Sub
+
+    selectedRole = GetSingleSelectedRole(pt, "役職名")
+    If selectedRole = "" Then Exit Sub
+
+    m_IsApplyingRoleDetail = True
+    On Error GoTo SafeExit
+    ApplyRoleReasonDetail pt, pc, selectedRole
+
+SafeExit:
+    m_IsApplyingRoleDetail = False
+End Sub
+
+Private Sub ApplyRoleReasonDetail(ByVal pt As PivotTable, ByVal pc As Chart, ByVal roleName As String)
+    Dim pfRole As PivotField
+    Dim srs As Series
+
+    On Error Resume Next
+    Set pfRole = pt.PivotFields("役職名")
+    On Error GoTo 0
+    If pfRole Is Nothing Then Exit Sub
+
+    pt.ManualUpdate = True
+
+    pfRole.Orientation = xlPageField
+    pfRole.Position = 2
+    pfRole.ClearAllFilters
+
+    On Error Resume Next
+    pfRole.CurrentPage = roleName
+    If Err.Number <> 0 Then
+        Err.Clear
+        pt.ManualUpdate = False
+        MsgBox "指定した役職名は見つかりませんでした。", vbExclamation
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    pt.PivotFields("集計理由項目").Orientation = xlRowField
+    ApplyTopNToReason pt, MAX_REASON_ITEMS
+
+    pt.ManualUpdate = False
+    pt.RefreshTable
+
+    P_SelectedRoleDetail = roleName
+
+    pc.SetSourceData Source:=pt.TableRange1
+    pc.ChartType = xlPie
+    pc.HasTitle = True
+    pc.ChartTitle.Text = fnBuildChartTitle()
+
+    On Error Resume Next
+    pc.ApplyDataLabels Type:=xlDataLabelsShowValue
+    For Each srs In pc.SeriesCollection
+        srs.HasDataLabels = True
+        srs.DataLabels.ShowValue = True
+    Next srs
+
+    pc.HasLegend = True
+    pc.Legend.Position = xlLegendPositionRight
+    On Error GoTo 0
+End Sub
+
+Private Function GetSingleSelectedRole(ByVal pt As PivotTable, ByVal fieldName As String) As String
+    Dim pf As PivotField
+    Dim pi As PivotItem
+    Dim cnt As Long
+    Dim selectedName As String
+
+    On Error Resume Next
+    Set pf = pt.PivotFields(fieldName)
+    On Error GoTo 0
+
+    If pf Is Nothing Then
+        GetSingleSelectedRole = ""
+        Exit Function
+    End If
+
+    If pf.Orientation = xlPageField Then
+        On Error Resume Next
+        selectedName = CStr(pf.CurrentPage)
+        On Error GoTo 0
+        If selectedName <> "" And selectedName <> "(All)" Then
+            GetSingleSelectedRole = selectedName
+        Else
+            GetSingleSelectedRole = ""
+        End If
+        Exit Function
+    End If
+
+    cnt = 0
+    For Each pi In pf.PivotItems
+        If pi.Visible Then
+            selectedName = CStr(pi.Name)
+            cnt = cnt + 1
+            If cnt > 1 Then Exit For
+        End If
+    Next pi
+
+    If cnt = 1 Then
+        GetSingleSelectedRole = selectedName
+    Else
+        GetSingleSelectedRole = ""
+    End If
+End Function
+
+Private Function IsRoleReasonDetailLayout(ByVal pt As PivotTable) As Boolean
+    Dim pfRole As PivotField
+    Dim pfReason As PivotField
+
+    On Error Resume Next
+    Set pfRole = pt.PivotFields("役職名")
+    Set pfReason = pt.PivotFields("集計理由項目")
+    On Error GoTo 0
+
+    If pfRole Is Nothing Or pfReason Is Nothing Then
+        IsRoleReasonDetailLayout = False
+        Exit Function
+    End If
+
+    IsRoleReasonDetailLayout = (pfRole.Orientation = xlPageField And pfReason.Orientation = xlRowField)
+End Function
 
 Private Sub ApplyTopNToReason(ByVal pt As PivotTable, ByVal topN As Long)
     Dim pf As PivotField
