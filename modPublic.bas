@@ -3,6 +3,7 @@ Option Explicit
 Public Const P_ConnectString As String = "Provider=IBMDA400;Data Source=HONSHA;User ID=SYSTEM;Password=FJPN2480"
 'Public Const P_ConnectString As String = "Provider=IBMDA400;Data Source=FUJIPAN;User ID=SYSTEM;Password=FJPN2480"
 Public P_SelectedRoleDetail As String
+Public P_IsPivotBuilding As Boolean
 
 '
 Public Function fnTrimCode(ByVal str As String) As String
