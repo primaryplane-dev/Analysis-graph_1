@@ -39,6 +39,7 @@ End Sub
 
 Private Sub WritePivotEventLog(ByVal ws As Worksheet, ByVal msg As String)
     If ws Is Nothing Then Exit Sub
+    If Not P_DebugLogEnabled Then Exit Sub
 
     On Error Resume Next
     ws.Range("AA2").Value = "EventDebug"

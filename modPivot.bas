@@ -810,6 +810,8 @@ Private Function ResolveAxisValueForPageField(ByVal pt As PivotTable, ByVal fiel
 End Function
 
 Private Sub ResetDetailDebugLog()
+    If Not P_DebugLogEnabled Then Exit Sub
+
     On Error Resume Next
     m_DebugRow = 3
     With ThisWorkbook.Worksheets("分析グラフ")
@@ -821,6 +823,8 @@ End Sub
 
 Private Sub WriteDetailDebugLog(ByVal msg As String)
     Debug.Print msg
+    If Not P_DebugLogEnabled Then Exit Sub
+
     On Error Resume Next
     If m_DebugRow < 3 Then m_DebugRow = 3
     ThisWorkbook.Worksheets("分析グラフ").Range("Y" & CStr(m_DebugRow)).Value = msg
