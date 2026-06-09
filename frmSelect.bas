@@ -2,6 +2,8 @@ Option Explicit
 
 ' --- フォーム初期化 ---
 Private Sub UserForm_Initialize()
+    Dim lastPatternIndex As Long
+
     ' 1. 期間指定の初期設定（チェックなし・入力不可）
     Me.chkDate.Value = False
     Call subControlDateInput(False)
@@ -21,11 +23,42 @@ Private Sub UserForm_Initialize()
         .AddItem "11.1年間の月別推移 (理由)"
         .AddItem "12.3年間の年別推移 (理由)"
 '        .AddItem "13.回答内容をエクセル出力"
-        .ListIndex = 0 ' デフォルトで一番上を選択
+
+        lastPatternIndex = fnFindPatternIndex(P_Pattern)
+        If lastPatternIndex >= 0 Then
+            .ListIndex = lastPatternIndex
+        Else
+            .ListIndex = 0 ' デフォルトで一番上を選択
+        End If
     End With
     
     ' 3. 集計対象の初期選択
-    Me.optKikkake.Value = True
+    If P_Kubun2 = 2 Then
+        Me.optNext.Value = True
+    Else
+        Me.optKikkake.Value = True
+    End If
+
+    ' 4. パターンに応じて条件区分の活性を切り替え
+    Call subControlKubunByPattern
+End Sub
+
+Private Function fnFindPatternIndex(ByVal patternText As String) As Long
+    Dim i As Long
+
+    fnFindPatternIndex = -1
+    If Trim$(patternText) = "" Then Exit Function
+
+    For i = 0 To Me.cmbPattern.ListCount - 1
+        If StrComp(CStr(Me.cmbPattern.List(i)), patternText, vbTextCompare) = 0 Then
+            fnFindPatternIndex = i
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Sub cmbPattern_Change()
+    Call subControlKubunByPattern
 End Sub
 
 ' --- 期間指定チェックボックスの制御 ---
@@ -49,6 +82,22 @@ Private Sub subControlDateInput(ByVal IsEnabled As Boolean)
     Me.txtDateT.Enabled = IsEnabled
     Me.btnCalF.Enabled = IsEnabled ' カレンダー呼び出しボタン(開始)
     Me.btnCalT.Enabled = IsEnabled ' カレンダー呼び出しボタン(終了)
+End Sub
+
+' パターン1・2は条件区分を使用しないため非活性化
+Private Sub subControlKubunByPattern()
+    Dim pNum As Integer
+    Dim disableKubun As Boolean
+
+    pNum = Val(Left$(Me.cmbPattern.Value, 2))
+    disableKubun = (pNum = 1 Or pNum = 2 Or (pNum >= 9 And pNum <= 12))
+
+    Me.optKikkake.Enabled = Not disableKubun
+    Me.optNext.Enabled = Not disableKubun
+
+    If disableKubun Then
+        Me.optKikkake.Value = True
+    End If
 End Sub
 
 ' --- カレンダーボタン押下（開始日） ---
@@ -106,7 +155,11 @@ Private Sub cmdExecute_Click()
     ' 公用変数に値をセットして処理へ渡す
     P_DateFrom = IIf(Me.chkDate.Value, Format(Me.txtDateF.Value, "yyyymmdd"), "")
     P_DateTo = IIf(Me.chkDate.Value, Format(Me.txtDateT.Value, "yyyymmdd"), "")
-    P_Kubun2 = IIf(Me.optKikkake.Value, 1, 2)
+    If Val(Left$(Me.cmbPattern.Value, 2)) <= 2 Or (Val(Left$(Me.cmbPattern.Value, 2)) >= 9 And Val(Left$(Me.cmbPattern.Value, 2)) <= 12) Then
+        P_Kubun2 = 1
+    Else
+        P_Kubun2 = IIf(Me.optKikkake.Value, 1, 2)
+    End If
     P_Pattern = Me.cmbPattern.Value ' 選択された13パターンの名前を保存
     
     P_Regist = True

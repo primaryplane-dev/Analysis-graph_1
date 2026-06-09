@@ -36,6 +36,8 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
         Exit Sub
     End If
 
+    pNum = Val(Left(selectedPattern, 2))
+
     ' --- 列幅固定 ---
     ST.Columns("B").ColumnWidth = 31
     ST.Columns("C:AZ").ColumnWidth = 8.5
@@ -62,23 +64,29 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
         .Range("B1").Value = "ジョブリターン分析"
         .Range("B1").Font.Size = 18
         .Range("B1").Font.Bold = True
+        .Range("B1").Font.Name = "メイリオ"
+        .Range("E1").Font.Bold = True
+        .Range("E1").Font.Name = "メイリオ"
+        .Range("J1").Font.Bold = True
+        .Range("J1").Font.Name = "メイリオ"
 
-        .Range("C1").Value = "現在表示中"
-        .Range("C1").Font.Size = 12
-        .Range("C1").Font.Size = 12
-        .Range("C2").Value = fnTrimCode(selectedPattern)
-
-        .Range("G1").Value = "期間"
-        .Range("G1").Font.Size = 12
+        .Range("D1").Value = "期間"
+        .Range("D1").Font.Size = 12
+        .Range("D1").Font.Name = "メイリオ"
         If P_DateFrom <> "" And P_DateTo <> "" Then
-            .Range("G2").Value = Format(P_DateFrom, "@@@@/@@/@@") & " ～ " & Format(P_DateTo, "@@@@/@@/@@")
+            .Range("E1").Value = Format(P_DateFrom, "@@@@/@@/@@") & " ～ " & Format(P_DateTo, "@@@@/@@/@@")
         Else
-            .Range("G2").Value = "全期間"
+            .Range("E1").Value = "全期間"
         End If
 
-        .Range("K1").Value = "区分"
-        .Range("K1").Font.Size = 12
-        .Range("K2").Value = IIf(P_Kubun2 = 2, "次のステップへの期待", "退職を考えたきっかけ")
+        .Range("I1").Value = "区分"
+        .Range("I1").Font.Size = 12
+        .Range("I1").Font.Name = "メイリオ"
+        If pNum <= 2 Or (pNum >= 9 And pNum <= 12) Then
+            .Range("J1").Value = ""
+        Else
+            .Range("J1").Value = IIf(P_Kubun2 = 2, "次のステップへの期待", "退職を考えたきっかけ")
+        End If
     End With
 
     ' --- ピボットテーブル作成（100行目から） ---
@@ -90,7 +98,6 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     pt.PreserveFormatting = True
 
     ' --- パターン別 値エリアの切り替え ---
-    pNum = Val(Left(selectedPattern, 2))
     P_SelectedRoleDetail = ""
     m_DetailAxisField = ""
     m_DetailAxisValue = ""
@@ -123,9 +130,13 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     axisField = GetAxisFieldByPattern(pNum)
     If axisField <> "" Then pt.PivotFields(axisField).Orientation = xlRowField
 
+    If pNum = 9 Then
+        pt.PivotFields("性別名").Orientation = xlColumnField
+    End If
+
     isTwoStepReason = ShouldUseTwoStepReason(pt, pNum)
 
-    If pNum >= 3 And pNum <= 8 And pNum <> DETAIL_PATTERN_ROLE_REASON And Not isTwoStepReason Then
+    If pNum >= 3 And pNum <= 8 And (Not IsMainPiePattern(pNum)) And Not isTwoStepReason Then
         pt.PivotFields("集計理由項目").Orientation = xlRowField
         ApplyTopNToReason pt, MAX_REASON_ITEMS
     ElseIf pNum = 11 Or pNum = 12 Then
@@ -134,21 +145,36 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
 
     ' --- グラフ作成 ---
     Dim cho As ChartObject
-    Set cho = ST.ChartObjects.Add(Left:=ST.Range("B4").Left, Top:=ST.Range("B4").Top, Width:=730, Height:=600)
+    Set cho = ST.ChartObjects.Add(Left:=ST.Range("B4").Left, Top:=ST.Range("B4").Top, Width:=730, Height:=450)
     cho.name = MAIN_CHART_NAME
     Set pc = cho.Chart
     pc.SetSourceData Source:=pt.TableRange1
 
-    Select Case pNum
-        Case 1, 2, DETAIL_PATTERN_ROLE_REASON: pc.ChartType = xlPie
-        Case 3, 4, 5, 6, 7, 8: pc.ChartType = xlBarClustered
-        Case 11, 12: pc.ChartType = xlColumnStacked
-        Case Else: pc.ChartType = xlColumnClustered
-    End Select
+    If IsMainPiePattern(pNum) Then
+        pc.ChartType = xlPie
+    Else
+        Select Case pNum
+            Case 9: pc.ChartType = xlColumnStacked
+            Case 11, 12: pc.ChartType = xlColumnStacked
+            Case Else: pc.ChartType = xlColumnClustered
+        End Select
+    End If
 
     ' --- スライサー作成 ---
     Dim slNames As Variant, slItem As Variant
     Dim i As Integer: i = 0
+    Dim baseTop As Double, baseLeft As Double
+    Dim colGap As Double, rowGap As Double
+    Dim normalWidth As Double, normalHeight As Double, halfHeight As Double
+    Dim slTop As Double, slLeft As Double, slHeight As Double
+
+    baseTop = ST.Range("M4").Top
+    baseLeft = ST.Range("M4").Left
+    colGap = 150
+    rowGap = 10
+    normalWidth = 140
+    normalHeight = 380
+    halfHeight = normalHeight / 2
     slNames = Array("会社名", "工場名", "勤続区分", "性別名", "役職名")
 
     For Each slItem In slNames
@@ -158,10 +184,37 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
         On Error GoTo 0
 
         If Not sc Is Nothing Then
+            Select Case CStr(slItem)
+                Case "会社名"
+                    slTop = baseTop
+                    slLeft = baseLeft
+                    slHeight = normalHeight
+                Case "工場名"
+                    slTop = baseTop
+                    slLeft = baseLeft + colGap
+                    slHeight = normalHeight
+                Case "役職名"
+                    slTop = baseTop
+                    slLeft = baseLeft + (colGap * 2)
+                    slHeight = halfHeight
+                Case "勤続区分"
+                    slTop = baseTop + halfHeight + rowGap
+                    slLeft = baseLeft + (colGap * 2)
+                    slHeight = halfHeight
+                Case "性別名"
+                    slTop = baseTop + (halfHeight * 2) + (rowGap * 2)
+                    slLeft = baseLeft + (colGap * 2)
+                    slHeight = halfHeight
+                Case Else
+                    slTop = baseTop
+                    slLeft = baseLeft + (i * colGap)
+                    slHeight = normalHeight
+            End Select
+
             sc.Slicers.Add ST, name:="Sl_" & slItem, Caption:=CStr(slItem), _
-                           Top:=ST.Range("M4").Top, _
-                           Left:=ST.Range("M4").Left + (i * 150), _
-                           Width:=140, Height:=380
+                           Top:=slTop, _
+                           Left:=slLeft, _
+                           Width:=normalWidth, Height:=slHeight
             i = i + 1
         End If
     Next slItem
@@ -195,6 +248,7 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
         srs.HasDataLabels = True
         srs.DataLabels.ShowValue = True
     Next srs
+    OptimizeChartLayout pc
     On Error GoTo 0
 
     ' カーソルを左上に戻す
@@ -202,6 +256,11 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     ST.Range("A1").Select
     ActiveWindow.ScrollRow = 1
     ActiveWindow.ScrollColumn = 1
+    With ActiveWindow
+        .SplitColumn = 0
+        .SplitRow = 2
+        .FreezePanes = True
+    End With
 
     Application.ScreenUpdating = True
 
@@ -696,6 +755,7 @@ Private Sub ApplyRoleReasonDetail(ByVal ws As Worksheet, ByVal mainPt As PivotTa
 
         .HasLegend = True
         .Legend.Position = xlLegendPositionRight
+        OptimizeChartLayout detailCho.Chart
         On Error GoTo 0
     End With
     WriteDetailDebugLog "[Detail] chart updated"
@@ -960,6 +1020,15 @@ Private Function ShouldUseTwoStepReason(ByVal pt As PivotTable, ByVal pNum As In
     ShouldUseTwoStepReason = (CountVisiblePivotItems(pt, "集計理由項目") > MAX_REASON_ITEMS)
 End Function
 
+Private Function IsMainPiePattern(ByVal pNum As Integer) As Boolean
+    Select Case pNum
+        Case 1, 2, 3, 4, DETAIL_PATTERN_ROLE_REASON, 6, 7, 8
+            IsMainPiePattern = True
+        Case Else
+            IsMainPiePattern = False
+    End Select
+End Function
+
 Private Function GetAxisFieldByPattern(ByVal pNum As Integer) As String
     Select Case pNum
         Case 1, 3: GetAxisFieldByPattern = "性別名"
@@ -1040,17 +1109,111 @@ Private Function GetOrCreateDetailChart(ByVal ws As Worksheet, ByVal mainCho As 
     On Error GoTo 0
 
     If cho Is Nothing Then
-        Set cho = ws.ChartObjects.Add(Left:=mainCho.Left, Top:=mainCho.Top + mainCho.Height + 20, Width:=mainCho.Width, Height:=360)
+        Set cho = ws.ChartObjects.Add(Left:=mainCho.Left, Top:=mainCho.Top + mainCho.Height + 20, Width:=mainCho.Width, Height:=450)
         cho.name = DETAIL_CHART_NAME
     Else
         cho.Left = mainCho.Left
         cho.Top = mainCho.Top + mainCho.Height + 20
         cho.Width = mainCho.Width
-        cho.Height = 360
+        cho.Height = 450
     End If
 
     Set GetOrCreateDetailChart = cho
 End Function
+
+Private Sub OptimizeChartLayout(ByVal ch As Chart)
+    Dim chartName As String
+    Dim chartW As Double
+    Dim chartH As Double
+    Dim titleLeftPadding As Double
+    Dim plotLeftPadding As Double
+    Dim rightPadding As Double
+    Dim topPadding As Double
+    Dim bottomPadding As Double
+    Dim legendReservedWidth As Double
+    Dim legendEntryCount As Long
+    Dim availableLegendHeight As Double
+    Dim preferredLegendHeight As Double
+    Dim legendFontSize As Double
+    Dim plotW As Double
+    Dim plotH As Double
+    Dim ws As Worksheet
+    Dim mainCho As ChartObject
+
+    On Error Resume Next
+
+    chartName = ""
+    chartName = CStr(ch.Parent.Name)
+
+    titleLeftPadding = 80
+    plotLeftPadding = 80
+    rightPadding = 4
+    topPadding = 40
+    bottomPadding = 4
+
+    If ch.HasTitle Then
+        ch.ChartTitle.Left = titleLeftPadding
+        ch.ChartTitle.Top = 2
+    End If
+
+    legendReservedWidth = 0
+    If ch.HasLegend Then
+        If ch.Legend.Position = xlLegendPositionRight Then
+            legendEntryCount = 0
+            On Error Resume Next
+            legendEntryCount = ch.Legend.LegendEntries.Count
+            On Error GoTo 0
+
+            availableLegendHeight = ch.ChartArea.Height - topPadding - bottomPadding
+            If legendEntryCount >= 22 Then
+                legendFontSize = 8
+                preferredLegendHeight = availableLegendHeight
+            ElseIf legendEntryCount >= 14 Then
+                legendFontSize = 9
+                preferredLegendHeight = legendEntryCount * 14
+            Else
+                legendFontSize = 9
+                preferredLegendHeight = legendEntryCount * 13
+            End If
+
+            If preferredLegendHeight < 60 Then preferredLegendHeight = 60
+            If preferredLegendHeight > availableLegendHeight Then
+                preferredLegendHeight = availableLegendHeight
+                legendFontSize = 8
+            End If
+
+            legendReservedWidth = ch.Legend.Width + 8
+            ch.Legend.Top = topPadding
+            ch.Legend.Height = preferredLegendHeight
+            ch.Legend.Font.Size = legendFontSize
+        End If
+    End If
+
+    chartW = ch.ChartArea.Width
+    chartH = ch.ChartArea.Height
+
+    plotW = chartW - plotLeftPadding - rightPadding - legendReservedWidth
+    plotH = chartH - topPadding - bottomPadding
+
+    If plotW > 20 Then ch.PlotArea.Width = plotW
+    If plotH > 20 Then ch.PlotArea.Height = plotH
+    ch.PlotArea.Left = plotLeftPadding
+    ch.PlotArea.Top = topPadding
+
+    ' 2段階目は1段階目のプロットエリア寸法に揃える
+    If StrComp(chartName, DETAIL_CHART_NAME, vbTextCompare) = 0 Then
+        Set ws = ThisWorkbook.Worksheets("分析グラフ")
+        Set mainCho = ws.ChartObjects(MAIN_CHART_NAME)
+        If Not mainCho Is Nothing Then
+            ch.PlotArea.Left = mainCho.Chart.PlotArea.Left
+            ch.PlotArea.Top = mainCho.Chart.PlotArea.Top
+            ch.PlotArea.Width = mainCho.Chart.PlotArea.Width
+            ch.PlotArea.Height = mainCho.Chart.PlotArea.Height
+        End If
+    End If
+
+    On Error GoTo 0
+End Sub
 
 Private Sub ResetDetailPivotLayout(ByVal pt As PivotTable)
     On Error Resume Next
