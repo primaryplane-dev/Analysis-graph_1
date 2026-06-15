@@ -238,7 +238,7 @@ Public Sub subAddCalculatedColumns()
     cKai = ST.Rows(1).Find(What:="RTKAIC", LookAt:=xlWhole).Column
     cKojo = ST.Rows(1).Find(What:="RTKJNO", LookAt:=xlWhole).Column
     cPos = ST.Rows(1).Find(What:="RTSKUC", LookAt:=xlWhole).Column
-    cDept = ST.Rows(1).Find(What:="RTSZBM", LookAt:=xlWhole).Column
+    cDept = ST.Rows(1).Find(What:="RTSZKM", LookAt:=xlWhole).Column
     cEmp = ST.Rows(1).Find(What:="RTSYNO", LookAt:=xlWhole).Column
     cDlt = ST.Rows(1).Find(What:="RTDLT", LookAt:=xlWhole).Column
     On Error GoTo 0

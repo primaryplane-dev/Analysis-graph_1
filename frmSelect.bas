@@ -4,7 +4,7 @@ Option Explicit
 Private Sub UserForm_Initialize()
     Dim lastPatternIndex As Long
 
-    ' 1. 期間指定の初期設定（チェックなし・入力不可）
+    ' 1. 期間設定の初期設定（チェックなし・入力不可）
     Me.chkDate.Value = False
     Call subControlDateInput(False)
     
@@ -61,7 +61,7 @@ Private Sub cmbPattern_Change()
     Call subControlKubunByPattern
 End Sub
 
-' --- 期間指定チェックボックスの制御 ---
+' --- 期間設定チェックボックスの制御 ---
 Private Sub chkDate_Change()
     If Me.chkDate.Value = True Then
         ' チェックされたらデフォルト期間（本日～1年前）をセット
@@ -76,7 +76,7 @@ Private Sub chkDate_Change()
     End If
 End Sub
 
-' 日付入力関連の活性・非活性を切り替えるサブ処理
+' 日付入力関連の活性・非活性を切り替えるサブ
 Private Sub subControlDateInput(ByVal IsEnabled As Boolean)
     Me.txtDateF.Enabled = IsEnabled
     Me.txtDateT.Enabled = IsEnabled
@@ -122,7 +122,7 @@ Private Sub btnCalT_Click()
         d = Date ' 空欄なら今日の日付をデフォルトにする
     End If
     
-    ' カレンダーを呼び出す
+    ' カレンダーを呼び出し
     Me.txtDateT.Value = fncGetCalendarDate(d)
 End Sub
 
@@ -144,7 +144,7 @@ End Function
 
 ' --- 実行ボタン ---
 Private Sub cmdExecute_Click()
-    ' 期間指定ありの場合の入力チェック
+    ' 期間設定ありの場合の入力チェック
     If Me.chkDate.Value = True Then
         If Not IsDate(Me.txtDateF.Value) Or Not IsDate(Me.txtDateT.Value) Then
             MsgBox "期間が正しく入力されていません。", vbExclamation
@@ -152,7 +152,7 @@ Private Sub cmdExecute_Click()
         End If
     End If
 
-    ' 公用変数に値をセットして処理へ渡す
+    ' 共用変数に値をセットして処理へ渡す
     P_DateFrom = IIf(Me.chkDate.Value, Format(Me.txtDateF.Value, "yyyymmdd"), "")
     P_DateTo = IIf(Me.chkDate.Value, Format(Me.txtDateT.Value, "yyyymmdd"), "")
     If Val(Left$(Me.cmbPattern.Value, 2)) <= 2 Or (Val(Left$(Me.cmbPattern.Value, 2)) >= 9 And Val(Left$(Me.cmbPattern.Value, 2)) <= 12) Then
@@ -160,7 +160,8 @@ Private Sub cmdExecute_Click()
     Else
         P_Kubun2 = IIf(Me.optKikkake.Value, 1, 2)
     End If
-    P_Pattern = Me.cmbPattern.Value ' 選択された13パターンの名前を保存
+
+    P_Pattern = Me.cmbPattern.Value ' 選択された13パターンの名前を保持
     
     P_Regist = True
     Me.Hide

@@ -82,10 +82,10 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
         .Range("I1").Value = "区分"
         .Range("I1").Font.Size = 12
         .Range("I1").Font.Name = "メイリオ"
-        If pNum <= 2 Or (pNum >= 9 And pNum <= 12) Then
-            .Range("J1").Value = ""
-        Else
+        If ShouldShowKubunHeader(pNum) Then
             .Range("J1").Value = IIf(P_Kubun2 = 2, "次のステップへの期待", "退職を考えたきっかけ")
+        Else
+            .Range("J1").Value = ""
         End If
     End With
 
@@ -145,7 +145,7 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
 
     ' --- グラフ作成 ---
     Dim cho As ChartObject
-    Set cho = ST.ChartObjects.Add(Left:=ST.Range("B4").Left, Top:=ST.Range("B4").Top, Width:=730, Height:=450)
+    Set cho = ST.ChartObjects.Add(Left:=ST.Range("B10").Left, Top:=ST.Range("B10").Top, Width:=500, Height:=360)
     cho.name = MAIN_CHART_NAME
     Set pc = cho.Chart
     pc.SetSourceData Source:=pt.TableRange1
@@ -162,20 +162,26 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
 
     ' --- スライサー作成 ---
     Dim slNames As Variant, slItem As Variant
-    Dim i As Integer: i = 0
     Dim baseTop As Double, baseLeft As Double
     Dim colGap As Double, rowGap As Double
     Dim normalWidth As Double, normalHeight As Double, halfHeight As Double
-    Dim slTop As Double, slLeft As Double, slHeight As Double
+    Dim wideWidth As Double
+    Dim slTop As Double, slLeft As Double, slHeight As Double, slWidth As Double
+    Dim slr As Slicer
+    Dim slicerGap As Double
+    Dim currentLeft As Double
 
-    baseTop = ST.Range("M4").Top
-    baseLeft = ST.Range("M4").Left
-    colGap = 150
-    rowGap = 10
-    normalWidth = 140
-    normalHeight = 380
+    baseTop = ST.Range("B3").Top
+    baseLeft = ST.Range("B3").Left
+    slicerGap = 8
+    colGap = 0
+    rowGap = 0
+    normalWidth = 112
+    wideWidth = normalWidth + 36
+    normalHeight = 110
     halfHeight = normalHeight / 2
-    slNames = Array("会社名", "工場名", "勤続区分", "性別名", "役職名")
+    slNames = Array("会社名", "工場名", "所属名", "役職名", "勤続区分", "性別名")
+    currentLeft = baseLeft
 
     For Each slItem In slNames
         Set sc = Nothing
@@ -184,38 +190,21 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
         On Error GoTo 0
 
         If Not sc Is Nothing Then
-            Select Case CStr(slItem)
-                Case "会社名"
-                    slTop = baseTop
-                    slLeft = baseLeft
-                    slHeight = normalHeight
-                Case "工場名"
-                    slTop = baseTop
-                    slLeft = baseLeft + colGap
-                    slHeight = normalHeight
-                Case "役職名"
-                    slTop = baseTop
-                    slLeft = baseLeft + (colGap * 2)
-                    slHeight = halfHeight
-                Case "勤続区分"
-                    slTop = baseTop + halfHeight + rowGap
-                    slLeft = baseLeft + (colGap * 2)
-                    slHeight = halfHeight
-                Case "性別名"
-                    slTop = baseTop + (halfHeight * 2) + (rowGap * 2)
-                    slLeft = baseLeft + (colGap * 2)
-                    slHeight = halfHeight
-                Case Else
-                    slTop = baseTop
-                    slLeft = baseLeft + (i * colGap)
-                    slHeight = normalHeight
-            End Select
+            slTop = baseTop
+            slLeft = currentLeft
+            slHeight = normalHeight
+            slWidth = normalWidth
+            If CStr(slItem) = "会社名" Or CStr(slItem) = "所属名" Then slWidth = wideWidth
 
-            sc.Slicers.Add ST, name:="Sl_" & slItem, Caption:=CStr(slItem), _
-                           Top:=slTop, _
-                           Left:=slLeft, _
-                           Width:=normalWidth, Height:=slHeight
-            i = i + 1
+            Set slr = sc.Slicers.Add(ST, name:="Sl_" & slItem, Caption:=CStr(slItem), _
+                                     Top:=slTop, _
+                                     Left:=slLeft, _
+                                     Width:=slWidth, Height:=slHeight)
+
+            On Error Resume Next
+            slr.Shape.TextFrame2.TextRange.Font.Size = 9
+            On Error GoTo 0
+            currentLeft = currentLeft + slWidth + slicerGap
         End If
     Next slItem
 
@@ -258,14 +247,14 @@ Public Sub subUpdatePivotByMenu(ByVal selectedPattern As String)
     ActiveWindow.ScrollColumn = 1
     With ActiveWindow
         .SplitColumn = 0
-        .SplitRow = 2
+        .SplitRow = 8
         .FreezePanes = True
     End With
 
     Application.ScreenUpdating = True
 
     ' パターン3～8は初期表示時にも2段階目を作成する
-    If pNum >= 3 And pNum <= 8 Then
+    If ShouldShowKubunHeader(pNum) Then
         subTryApplyRoleReasonDetailFromSelection
     End If
 
@@ -1012,12 +1001,20 @@ Private Function IsBlankLikeItemName(ByVal itemName As String) As Boolean
 End Function
 
 Private Function ShouldUseTwoStepReason(ByVal pt As PivotTable, ByVal pNum As Integer) As Boolean
-    If pNum < 3 Or pNum > 8 Then
+    If Not ShouldShowKubunHeader(pNum) Then
         ShouldUseTwoStepReason = False
         Exit Function
     End If
 
     ShouldUseTwoStepReason = (CountVisiblePivotItems(pt, "集計理由項目") > MAX_REASON_ITEMS)
+End Function
+
+Private Function ShouldShowKubunHeader(ByVal pNum As Integer) As Boolean
+    ' 表示仕様メモ:
+    ' - パターン3～8は「区分」を選んで分析するため、J1に区分見出し文言を表示する。
+    ' - それ以外のパターンは区分見出しを表示しない。
+    ' 将来仕様変更時は、この関数の判定だけ差し替えれば反映できる。
+    ShouldShowKubunHeader = (pNum >= 3 And pNum <= 8)
 End Function
 
 Private Function IsMainPiePattern(ByVal pNum As Integer) As Boolean
@@ -1109,13 +1106,13 @@ Private Function GetOrCreateDetailChart(ByVal ws As Worksheet, ByVal mainCho As 
     On Error GoTo 0
 
     If cho Is Nothing Then
-        Set cho = ws.ChartObjects.Add(Left:=mainCho.Left, Top:=mainCho.Top + mainCho.Height + 20, Width:=mainCho.Width, Height:=450)
+        Set cho = ws.ChartObjects.Add(Left:=mainCho.Left + mainCho.Width + 20, Top:=mainCho.Top, Width:=mainCho.Width, Height:=mainCho.Height)
         cho.name = DETAIL_CHART_NAME
     Else
-        cho.Left = mainCho.Left
-        cho.Top = mainCho.Top + mainCho.Height + 20
+        cho.Left = mainCho.Left + mainCho.Width + 20
+        cho.Top = mainCho.Top
         cho.Width = mainCho.Width
-        cho.Height = 450
+        cho.Height = mainCho.Height
     End If
 
     Set GetOrCreateDetailChart = cho
@@ -1135,6 +1132,9 @@ Private Sub OptimizeChartLayout(ByVal ch As Chart)
     Dim availableLegendHeight As Double
     Dim preferredLegendHeight As Double
     Dim legendFontSize As Double
+    Dim legendWidth As Double
+    Dim maxLegendWidth As Double
+    Dim isMainLegendDense As Boolean
     Dim plotW As Double
     Dim plotH As Double
     Dim ws As Worksheet
@@ -1182,10 +1182,34 @@ Private Sub OptimizeChartLayout(ByVal ch As Chart)
                 legendFontSize = 8
             End If
 
-            legendReservedWidth = ch.Legend.Width + 8
             ch.Legend.Top = topPadding
             ch.Legend.Height = preferredLegendHeight
             ch.Legend.Font.Size = legendFontSize
+
+            isMainLegendDense = (StrComp(chartName, MAIN_CHART_NAME, vbTextCompare) = 0 And legendEntryCount >= 40)
+
+            ' 1段階目グラフで凡例件数が多い場合は、Excel自動配置を外して幅を固定する
+            If isMainLegendDense Then
+                maxLegendWidth = ch.ChartArea.Width * 0.6
+                legendWidth = ch.ChartArea.Width * 0.42
+                If legendWidth > maxLegendWidth Then legendWidth = maxLegendWidth
+                If legendWidth < 220 Then legendWidth = 220
+
+                On Error Resume Next
+                ch.Legend.IncludeInLayout = False
+                ch.Legend.Position = xlLegendPositionCustom
+                ch.Legend.Left = ch.ChartArea.Width - legendWidth - 4
+                ch.Legend.Top = topPadding
+                ch.Legend.Width = legendWidth
+                ch.Legend.Height = availableLegendHeight
+                On Error GoTo 0
+            Else
+                On Error Resume Next
+                ch.Legend.IncludeInLayout = True
+                On Error GoTo 0
+            End If
+
+            legendReservedWidth = ch.Legend.Width + 8
         End If
     End If
 
